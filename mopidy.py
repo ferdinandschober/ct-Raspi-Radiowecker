@@ -283,7 +283,7 @@ class MusicPlayer(object):
             if response == None:
                 raise Exception("empty json response")
 
-            return response
+            return response['result']
 
         except Exception as e:
             raise Exception("Post request failed") from e
