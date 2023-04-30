@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, Dict, List, Optional
 import typing
 import sys
 import requests
@@ -73,23 +73,35 @@ class MusicPlayer(object):
 
     def updateTrackInfo(self):
         try:
-            trackinfo = self._clientRequest(
-                "core.playback.get_current_track")["result"]
+            # get current track
+            trackinfo = self._clientRequest("core.playback.get_current_track")
             if trackinfo == None:
                 return
+
+            # get track image
             trackimages = self._clientRequest("core.library.get_images", {
-                "uris": [trackinfo["uri"]]})["result"]
+                "uris": [trackinfo["uri"]]})
             if trackimages == None:
                 return
+
+            # dont update if track has not changed
             if self.old_trackinfo == trackinfo and self.old_trackimages == trackimages:
                 self.trackdata_changed = False
                 return
-            else:
-                self.old_trackinfo = trackinfo
-                self.old_trackimages = trackimages
-                self.trackdata_changed = True
-            self.artist = trackinfo["artists"][0]["name"].strip()
-            self.title = trackinfo["name"].strip()
+
+            # save track
+            self.old_trackinfo = trackinfo
+            self.old_trackimages = trackimages
+            self.trackdata_changed = True
+
+            try:
+                self.artist = trackinfo["artists"][0]["name"].strip()
+            except:
+                self.artist = ""
+            try:
+                self.title = trackinfo["name"].strip()
+            except:
+                self.title = ""
             try:
                 self.album = trackinfo["album"]["name"].strip()
             except:
@@ -98,7 +110,8 @@ class MusicPlayer(object):
                 self.imageurl = trackimages[trackinfo["uri"]][0]["uri"]
             except:
                 self.imageurl = None
-        except Exception as e:
+
+        except Exception:
             print(traceback.format_exc(), file=sys.stderr)
             self.artist = self.album = self.title = ""
             self.imageurl = None
@@ -134,19 +147,18 @@ class MusicPlayer(object):
 
     def getVolume(self):
         try:
-            self.volume = int(self._clientRequest(
-                "core.mixer.get_volume")["result"])
+            self.volume = int(self._clientRequest("core.mixer.get_volume"))
             self.muted = bool(self._clientRequest(
-                "core.mixer.get_mute")["result"])
+                "core.mixer.get_mute"))
         except Exception as e:
-            print(e)
+            print(e, file=sys.stderr)
             self.volume = 100
             self.muted = False
 
     def toggleMute(self):
         self._clientRequest("core.mixer.set_mute", {"mute": not self.muted})
         self.muted = bool(self._clientRequest(
-            "core.mixer.get_mute")["result"])
+            "core.mixer.get_mute"))
 
     def volup(self):
         self._clientRequest("core.mixer.set_volume", {
@@ -159,7 +171,7 @@ class MusicPlayer(object):
         self.getVolume()
 
     def getState(self):
-        status = self._clientRequest("core.playback.get_state")["result"]
+        status = self._clientRequest("core.playback.get_state")
         if status == "playing":
             self.playing = True
         else:
@@ -169,18 +181,20 @@ class MusicPlayer(object):
         try:
             self.checkAlarmPlaylist()
             self._clientRequest("core.tracklist.clear")
-            result = self._clientRequest("core.playlists.as_list")["result"]
-            if result == None:
-                raise Exception("Failed to retrieve playlists info")
-            alarm_uri = list(filter(lambda x: x["name"] == "Alarm", result))[0]["uri"]
-            sys.stderr.flush()
+            alarm_playlists = self._getAlarmPlaylists()
+            if alarm_playlists == None:
+                return
+            alarm_playlist = alarm_playlists[0]
+            alarm_uri = alarm_playlist['uri']
+
             alarm_tracks = self._clientRequest(
-                "core.playlists.get_items", {"uri": alarm_uri})["result"]
+                "core.playlists.get_items", {"uri": alarm_uri})
             if alarm_tracks == None:
                 raise Exception(f"failed to retrieve alarm_tracks [uri: {alarm_uri}]")
             print(f"alarm_tracks: {alarm_tracks}", file=sys.stderr)
+
             alarm_tracks = [ a["uri"] for a in alarm_tracks ]
-            print(f"alarm_tracks: {alarm_tracks}", file=sys.stderr)
+            print(f"alarm_uris: {alarm_tracks}", file=sys.stderr)
             if self._clientRequest("core.tracklist.add", {'uris': alarm_tracks}) == None:
                 print("failed to add track to tracklist", file=sys.stderr)
             self.playlist_set = True
@@ -190,35 +204,47 @@ class MusicPlayer(object):
         sys.stderr.flush()
 
     def checkAlarmPlaylist(self):
-        result = self._clientRequest("core.playlists.as_list")
-        if result == None:
-            print("failed to retrieve playlists")
-        result = result["result"]
-        print("PLAYLISTS: {result}", sys.stderr)
-        sys.stderr.flush()
-        if not result:
-            result = []
-        result = list(filter(lambda x: x["name"] == "Alarm", result))
-        sys.stderr.flush()
-        if len(result) > 0:
-            self.playlist = result[0]["uri"]
+        playlists = self._getAlarmPlaylists()
+        if playlists == None:
+            return
+        if len(playlists) > 0:
+            self.playlist = playlists[0]["uri"]
         else:
-            self.playlist = self._clientRequest("core.playlists.create", {
-                "name": "Alarm"
-            })["result"][0]["uri"]
+            try:
+                new = self._clientRequest("core.playlists.create", {
+                    "name": "Alarm"
+                })
+                if new == None:
+                    raise Exception("empty json-rpc response")
+                self.playlist = new[0]["uri"]
+            except Exception as e:
+                print(f"Failed to create playlist: {e}", file=sys.stderr)
 
-    def _getPlaylists(self) -> typing.Optional[List[str]]:
+    def _getAlarmPlaylists(self) -> Optional[List[Dict]]:
+        try:
+            playlists = self._getPlaylists()
+            if playlists == None:
+                raise Exception("Could not retrieve playlists")
+            playlists = list(filter(lambda x: x["name"] == "Alarm", playlists))
+            if len(playlists) == 0:
+                raise Exception("No playlist named alarm found!")
+            return playlists
+        except Exception as e:
+            print(f"failed to retrieve alarm playlist: {e}", file=sys.stderr)
+            sys.stderr.flush()
+
+    def _getPlaylists(self) -> Optional[List[Dict]]:
         try:
             result = self._clientRequest("core.playlists.as_list")
             if result == None:
-                raise Exception("failed to retrieve playlists")
+                raise Exception("Did not receive a valid response")
             return result["result"]
         except Exception as e:
-            print(f"failed to retreive playlists: {e}", file=sys.stderr)
+            print(f"Failed to retreive playlists: {e}", file=sys.stderr)
             sys.stderr.flush()
 
 
-    def _clientRequest(self, method, params={}):
+    def _clientRequest(self, method, params={}) -> Optional[Any]:
         headers = {'content-type': 'application/json'}
         payload = {
             "method": method,
@@ -234,7 +260,7 @@ class MusicPlayer(object):
                 timeout=1
             )
             response.raise_for_status()
-            return response.json()
+            return response.json().get("result")
 
         except Exception as e:
             print(f"post request failed: {e}", file=sys.stderr)
