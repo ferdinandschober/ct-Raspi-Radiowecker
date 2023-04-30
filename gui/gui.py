@@ -207,7 +207,7 @@ class Gui:
                     self.fullscreen = not self.fullscreen
 
             # evaluate all presses of the left mousebutton
-            elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 clicked = True
                 self.clicktime = pygame.time.get_ticks()
                 self.clickEvent = event
