@@ -37,6 +37,10 @@ class MusicPlayer(object):
         self.update_thread = threading.Thread(target=self.updateStatus)
         self.update_thread.daemon = True
         self.update_thread.start()
+        # race condition between inital update and
+        # someone increasing / decreasing the volume requires manual update
+        self.getVolume()
+        self._setVolume()
 
 
     def _downloader(self):
@@ -184,23 +188,22 @@ class MusicPlayer(object):
             print(f"failed to toggle mute: {e}", file=sys.stderr)
             sys.stderr.flush()
 
-    def volup(self):
+    def _setVolume(self):
         try:
             self._clientRequest("core.mixer.set_volume", {
-                                "volume": self.volume + 10})
+                                "volume": self.volume})
         except Exception as e:
             print(f"failed to set volume: {e}", file=sys.stderr)
             sys.stderr.flush()
         self.getVolume()
 
+    def volup(self):
+        self.volume += 10
+        self._setVolume()
+
     def voldown(self):
-        try:
-            self._clientRequest("core.mixer.set_volume", {
-                                "volume": self.volume - 10})
-        except Exception as e:
-            print(f"failed to set volume: {e}", file=sys.stderr)
-            sys.stderr.flush()
-        self.getVolume()
+        self.volume -= 10
+        self._setVolume()
 
     def getState(self):
         try:
