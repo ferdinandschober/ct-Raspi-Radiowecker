@@ -580,7 +580,7 @@ class application:
         self.ui.redraw = True
 
     def alarm_triggered(self):
-        self.current_screen == self.alarmscreen
+        self.current_screen = self.alarmscreen
         self.alarm.alarm_active = True
         self.ui.redraw = True
         self.musicplayer.setAlarmPlaylist()
