@@ -6,7 +6,7 @@ import configparser
 class config:
     def __init__(self):
         self._parser = configparser.RawConfigParser()
-        self.setting = ""
+        self.setting = {}
         self._load_config()
 
     def _load_config(self):
