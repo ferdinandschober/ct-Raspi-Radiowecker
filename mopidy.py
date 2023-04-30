@@ -238,9 +238,9 @@ class MusicPlayer(object):
             result = self._clientRequest("core.playlists.as_list")
             if result == None:
                 raise Exception("Did not receive a valid response")
-            return result["result"]
+            return result
         except Exception as e:
-            print(f"Failed to retreive playlists: {e}", file=sys.stderr)
+            print(f"Failed to retrieve playlists: {e}", file=sys.stderr)
             sys.stderr.flush()
 
 
@@ -266,7 +266,7 @@ class MusicPlayer(object):
             print(f"post request failed: {e}", file=sys.stderr)
             print(f"payload: {payload}", file=sys.stderr)
             sys.stderr.flush()
-            return {"result": None}
+            return None
 
 
 if __name__ == "__main__":
