@@ -283,10 +283,6 @@ class MusicPlayer(object):
             if response == None:
                 raise Exception("empty json response")
 
-            response = response.get("result")
-            if response == None:
-                raise Exception("empty json-rpc response")
-
             return response
 
         except Exception as e:
