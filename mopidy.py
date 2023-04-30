@@ -76,6 +76,10 @@ class MusicPlayer(object):
         try:
             # get current track
             trackinfo = self._clientRequest("core.playback.get_current_track")
+            if trackinfo == None:
+                self.artist = self.album = self.title = ""
+                self.imageurl = None
+                return
 
             # get track image
             trackimages = self._clientRequest("core.library.get_images", {
