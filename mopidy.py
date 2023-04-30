@@ -11,6 +11,7 @@ import time
 import pygame
 import traceback
 
+DEFAULT_VOLUME = 50
 
 class MusicPlayer(object):
     trackdata = dict()
@@ -23,7 +24,7 @@ class MusicPlayer(object):
     image_cache = {}
     playing = False
     muted = False
-    volume = 100
+    volume = DEFAULT_VOLUME
     trackdata_changed = True
     old_trackimages = None
     old_trackinfo = None
@@ -75,14 +76,10 @@ class MusicPlayer(object):
         try:
             # get current track
             trackinfo = self._clientRequest("core.playback.get_current_track")
-            if trackinfo == None:
-                return
 
             # get track image
             trackimages = self._clientRequest("core.library.get_images", {
                 "uris": [trackinfo["uri"]]})
-            if trackimages == None:
-                return
 
             # dont update if track has not changed
             if self.old_trackinfo == trackinfo and self.old_trackimages == trackimages:
@@ -126,7 +123,11 @@ class MusicPlayer(object):
             method = "core.playback.pause"
         else:
             method = "core.playback.play"
-        self._clientRequest(method)
+        try:
+            self._clientRequest(method)
+        except Exception as e:
+            print(f"failed to toggle playback: {e}", file=sys.stderr)
+            sys.stderr.flush()
         self.getState()
 
     def play(self):
@@ -134,57 +135,82 @@ class MusicPlayer(object):
             self.setAlarmPlaylist()
         if self.shuffle:
             method = "core.tracklist.shuffle"
-            self._clientRequest(method)
+            try:
+                self._clientRequest(method)
+            except Exception as e:
+                print(f"failed to set shuffle: {e}", file=sys.stderr)
+                sys.stderr.flush()
         method = "core.playback.play"
-        self._clientRequest(method)
+        try:
+            self._clientRequest(method)
+        except Exception as e:
+            print(f"failed to resume playback: {e}", file=sys.stderr)
+            sys.stderr.flush()
         self.getState()
 
     def skip(self):
-        self._clientRequest("core.playback.next")
+        try:
+            self._clientRequest("core.playback.next")
+        except Exception as e:
+            print(f"failed to select next track: {e}", file=sys.stderr)
+            sys.stderr.flush()
 
     def back(self):
-        self._clientRequest("core.playback.previous")
+        try:
+            self._clientRequest("core.playback.previous")
+        except Exception as e:
+            print(f"failed to select previous track: {e}", file=sys.stderr)
+            sys.stderr.flush()
 
     def getVolume(self):
         try:
-            self.volume = int(self._clientRequest("core.mixer.get_volume"))
-            self.muted = bool(self._clientRequest(
-                "core.mixer.get_mute"))
+            volume = self._clientRequest("core.mixer.get_volume")
+            self.volume = int(volume)
+            self.muted = bool(self._clientRequest("core.mixer.get_mute"))
         except Exception as e:
-            print(e, file=sys.stderr)
-            self.volume = 100
+            print(f"failed to get volume: {e}", file=sys.stderr)
+            self.volume = DEFAULT_VOLUME
             self.muted = False
 
     def toggleMute(self):
-        self._clientRequest("core.mixer.set_mute", {"mute": not self.muted})
-        self.muted = bool(self._clientRequest(
-            "core.mixer.get_mute"))
+        try:
+            self._clientRequest("core.mixer.set_mute", {"mute": not self.muted})
+            self.muted = bool(self._clientRequest("core.mixer.get_mute"))
+        except Exception as e:
+            print(f"failed to toggle mute: {e}", file=sys.stderr)
+            sys.stderr.flush()
 
     def volup(self):
-        self._clientRequest("core.mixer.set_volume", {
-                            "volume": self.volume + 10})
+        try:
+            self._clientRequest("core.mixer.set_volume", {
+                                "volume": self.volume + 10})
+        except Exception as e:
+            print(f"failed to set volume: {e}", file=sys.stderr)
+            sys.stderr.flush()
         self.getVolume()
 
     def voldown(self):
-        self._clientRequest("core.mixer.set_volume", {
-                            "volume": self.volume - 10})
+        try:
+            self._clientRequest("core.mixer.set_volume", {
+                                "volume": self.volume - 10})
+        except Exception as e:
+            print(f"failed to set volume: {e}", file=sys.stderr)
+            sys.stderr.flush()
         self.getVolume()
 
     def getState(self):
-        status = self._clientRequest("core.playback.get_state")
-        if status == "playing":
-            self.playing = True
-        else:
-            self.playing = False
+        try:
+            status = self._clientRequest("core.playback.get_state")
+            self.playing = status == "playing"
+        except Exception as e:
+            print("Failed to get playback state: {e}", file=sys.stderr)
+            sys.stderr.flush()
 
     def setAlarmPlaylist(self):
         try:
             self.checkAlarmPlaylist()
             self._clientRequest("core.tracklist.clear")
-            alarm_playlists = self._getAlarmPlaylists()
-            if alarm_playlists == None:
-                return
-            alarm_playlist = alarm_playlists[0]
+            alarm_playlist = self._getAlarmPlaylists()[0]
             alarm_uri = alarm_playlist['uri']
 
             alarm_tracks = self._clientRequest(
@@ -204,47 +230,37 @@ class MusicPlayer(object):
         sys.stderr.flush()
 
     def checkAlarmPlaylist(self):
-        playlists = self._getAlarmPlaylists()
-        if playlists == None:
-            return
-        if len(playlists) > 0:
-            self.playlist = playlists[0]["uri"]
-        else:
+        try:
+            self.playlist = self._getAlarmPlaylists()[0]["uri"]
+        except Exception as e:
+            print("Could not find alarm playlist: Creating a new one", file=sys.stderr)
+            sys.stderr.flush()
             try:
                 new = self._clientRequest("core.playlists.create", {
                     "name": "Alarm"
                 })
-                if new == None:
-                    raise Exception("empty json-rpc response")
                 self.playlist = new[0]["uri"]
             except Exception as e:
                 print(f"Failed to create playlist: {e}", file=sys.stderr)
 
-    def _getAlarmPlaylists(self) -> Optional[List[Dict]]:
+    def _getAlarmPlaylists(self) -> List[Dict]:
         try:
             playlists = self._getPlaylists()
-            if playlists == None:
-                raise Exception("Could not retrieve playlists")
             playlists = list(filter(lambda x: x["name"] == "Alarm", playlists))
             if len(playlists) == 0:
-                raise Exception("No playlist named alarm found!")
+                raise Exception("Could not find a playlist named 'Alarm'")
             return playlists
         except Exception as e:
-            print(f"failed to retrieve alarm playlist: {e}", file=sys.stderr)
-            sys.stderr.flush()
+            raise Exception("Failed to retrieve alarm playlist") from e
 
-    def _getPlaylists(self) -> Optional[List[Dict]]:
+    def _getPlaylists(self) -> List[Dict]:
         try:
-            result = self._clientRequest("core.playlists.as_list")
-            if result == None:
-                raise Exception("Did not receive a valid response")
-            return result
+            return self._clientRequest("core.playlists.as_list")
         except Exception as e:
-            print(f"Failed to retrieve playlists: {e}", file=sys.stderr)
-            sys.stderr.flush()
+            raise Exception("Failed to retrieve playlists") from e
 
 
-    def _clientRequest(self, method, params={}) -> Optional[Any]:
+    def _clientRequest(self, method, params={}) -> Any:
         headers = {'content-type': 'application/json'}
         payload = {
             "method": method,
@@ -260,13 +276,21 @@ class MusicPlayer(object):
                 timeout=1
             )
             response.raise_for_status()
-            return response.json().get("result")
+            if response == None:
+                raise Exception("empty response")
+
+            response = response.json()
+            if response == None:
+                raise Exception("empty json response")
+
+            response = response.get("result")
+            if response == None:
+                raise Exception("empty json-rpc response")
+
+            return response
 
         except Exception as e:
-            print(f"post request failed: {e}", file=sys.stderr)
-            print(f"payload: {payload}", file=sys.stderr)
-            sys.stderr.flush()
-            return None
+            raise Exception("Post request failed") from e
 
 
 if __name__ == "__main__":
