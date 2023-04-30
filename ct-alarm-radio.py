@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
+import sys
 import pygame
 import gui
 import locale
@@ -62,7 +63,7 @@ class application:
         time_string = datetime.now().strftime(
             self.config.setting["timeformat"])
         timefont_size = self.ui.calculate_font_size(30)
-        fontcolor = pygame.color.Color(50, 50, 50, 255)
+        fontcolor = pygame.color.Color(255, 255, 255, 255)
         self.idlescreen_cache["time_text"] = gui.Text(
             time_string, timefont_size, color=fontcolor, font=self.ui.basefont_file, shadowoffset=(0.5, 0.5))
         self.idlescreen_cache["time_text"].Position = self.ui.calculate_position(
@@ -78,7 +79,15 @@ class application:
             empty_image, self.ui.display_size, reset_idle)
         self.idlescreen_cache["button"].Position = (0, 0)
 
+    def brightness(self, brightness):
+        try:
+            with open('/sys/class/backlight/rpi_backlight/brightness', 'w') as f:
+                f.write(str(brightness))
+        except Exception as e:
+            print(e, file=sys.stderr)
+
     def idlescreen(self):
+        self.brightness(0)
         if not hasattr(self, 'idlescreen_cache'):
             self.cache_idlescreen()
         new_time = int(time.time())
@@ -101,6 +110,7 @@ class application:
             (0, 0), self.clockscreen_cache["time_text"].Surface, "center", "center")
 
     def clockscreen(self):
+        self.brightness(100)
         if not hasattr(self, 'clockscreen_cache'):
             self.cache_clockscreen()
 
@@ -182,6 +192,7 @@ class application:
             self.alarmscreen_cache["alarm_button"].Position[0] + icon_size[1]*1.2, self.alarmscreen_cache["alarm_button"].Position[1])
 
     def alarmscreen(self):
+        self.brightness(100)
         self.enable_alarm()
 
         if not hasattr(self, 'alarmscreen_cache'):
@@ -251,6 +262,7 @@ class application:
             self.musicscreen_cache["track_text"].Position[0], album_text_y)
 
     def musicscreen(self):
+        self.brightness(100)
         if not hasattr(self, 'musicscreen_cache') or self.musicplayer.trackdata_changed:
             self.cache_musicscreen()
 
