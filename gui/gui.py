@@ -54,7 +54,7 @@ class Gui:
         self.target_framerate = 30
 
         self.clock = pygame.time.Clock()
-        self.dblclktime = 200
+        self.dblclktime = 0
         self.clicktime = 0
         self.await_dblclk = False
         self.clickEvent = None
