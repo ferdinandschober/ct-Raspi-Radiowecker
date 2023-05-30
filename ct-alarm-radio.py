@@ -18,6 +18,7 @@ class application:
     def __init__(self):
         # load the config file
         self.config = config()
+        self._brightness = 0
         self.ui = gui.Gui(
             self.config.setting["resolution"],
             self.config.setting["fg_color"],
@@ -80,11 +81,14 @@ class application:
         self.idlescreen_cache["button"].Position = (0, 0)
 
     def brightness(self, brightness):
+        if self._brightness == brightness:
+            return
         try:
             with open('/sys/class/backlight/rpi_backlight/brightness', 'w') as f:
                 f.write(str(brightness))
         except Exception as e:
             print(e, file=sys.stderr)
+        self._brightness = brightness
 
     def idlescreen(self):
         self.brightness(0)
