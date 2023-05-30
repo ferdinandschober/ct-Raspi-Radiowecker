@@ -42,7 +42,6 @@ class MusicPlayer(object):
         self.getVolume()
         if self.volume == 100:
             self.volume = DEFAULT_VOLUME # mopidy seems to report a wrong volume initially
-            self._setVolume()
         self._setVolume()
 
 
