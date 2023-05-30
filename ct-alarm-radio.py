@@ -24,7 +24,8 @@ class application:
             self.config.setting["fg_color"],
             self.config.setting["bg_color"],
             self.config.setting["show_mouse_cursor"],
-            quit_function = self.cleanup
+            quit_function = self.cleanup,
+            app = self,
         )
         locale.setlocale(locale.LC_ALL, self.config.setting["locale"]+".utf8")
 
@@ -39,9 +40,6 @@ class application:
 
         self.is_idle = False
         self.time_last_idle = time.time()
-        self.check_idle_thread = threading.Thread(target=self.check_idle)
-        self.check_idle_thread.daemon = True
-        self.check_idle_thread.start()
         self.old_time = 0
 
         self.current_screen = self.idlescreen
@@ -50,14 +48,16 @@ class application:
         self.loop()
 
     def check_idle(self):
-        while True:
-            if time.time() - self.time_last_idle > 30:
-                self.time_last_idle = time.time()
-                self.is_idle = True
-            time.sleep(1)
+        if time.time() - self.time_last_idle > 30:
+            self.time_last_idle = time.time()
+            self.is_idle = True
 
     def cleanup(self):
         print("bye")
+
+    def reset_idle(self):
+        self.time_last_idle = time.time()
+        self.is_idle = False
 
     def cache_idlescreen(self):
         self.idlescreen_cache = {}
@@ -73,11 +73,9 @@ class application:
         empty_image = pygame.Surface(
             self.ui.display_size)
 
-        def reset_idle():
-            self.is_idle = False
 
         self.idlescreen_cache["button"] = gui.Button(
-            empty_image, self.ui.display_size, reset_idle)
+            empty_image, self.ui.display_size, self.reset_idle)
         self.idlescreen_cache["button"].Position = (0, 0)
 
     def brightness(self, brightness):
@@ -612,6 +610,7 @@ class application:
                 self.current_screen()
 
             self.ui.update()
+            self.check_idle()
 
 
 if __name__ == "__main__":

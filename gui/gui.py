@@ -15,7 +15,7 @@ from time import time, sleep
 
 class Gui:
     def __init__(self, display_resolution, fg_color, bg_color,
-                 cursor_visible, quit_function):
+                 cursor_visible, quit_function, app):
         pygame.init()
         pygame.mixer.quit()
         # a fullscreen switch for debugging purposes
@@ -60,6 +60,7 @@ class Gui:
         self.clickEvent = None
         self.click = None
         self.redraw = True
+        self.app = app
 
     # initialize the display surface
     def display_init(self):
@@ -208,6 +209,7 @@ class Gui:
 
             # evaluate all presses of the left mousebutton
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                self.app.reset_idle()
                 clicked = True
                 self.clicktime = pygame.time.get_ticks()
                 self.clickEvent = event
