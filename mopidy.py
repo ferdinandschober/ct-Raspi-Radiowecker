@@ -11,7 +11,7 @@ import time
 import pygame
 import traceback
 
-DEFAULT_VOLUME = 50
+DEFAULT_VOLUME = 30
 
 class MusicPlayer(object):
     trackdata = dict()
@@ -40,6 +40,9 @@ class MusicPlayer(object):
         # race condition between inital update and
         # someone increasing / decreasing the volume requires manual update
         self.getVolume()
+        if self.volume == 100:
+            self.volume = DEFAULT_VOLUME # mopidy seems to report a wrong volume initially
+            self._setVolume()
         self._setVolume()
 
 
@@ -174,8 +177,6 @@ class MusicPlayer(object):
         try:
             volume = self._clientRequest("core.mixer.get_volume")
             self.volume = int(volume)
-            print(f"intial volume: {volume}", file=sys.stderr)
-            sys.stderr.flush()
             self.muted = bool(self._clientRequest("core.mixer.get_mute"))
         except Exception as e:
             print(f"failed to get volume: {e} defaulting to 50!", file=sys.stderr)
