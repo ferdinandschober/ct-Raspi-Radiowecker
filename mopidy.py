@@ -174,9 +174,12 @@ class MusicPlayer(object):
         try:
             volume = self._clientRequest("core.mixer.get_volume")
             self.volume = int(volume)
+            print(f"intial volume: {volume}", file=sys.stderr)
+            sys.stderr.flush()
             self.muted = bool(self._clientRequest("core.mixer.get_mute"))
         except Exception as e:
-            print(f"failed to get volume: {e}", file=sys.stderr)
+            print(f"failed to get volume: {e} defaulting to 50!", file=sys.stderr)
+            sys.stderr.flush()
             self.volume = DEFAULT_VOLUME
             self.muted = False
 
